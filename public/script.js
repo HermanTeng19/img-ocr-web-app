@@ -48,7 +48,10 @@ function initializeEventListeners() {
     fileInput.addEventListener('change', handleFileSelect);
     
     // Button events
-    uploadBtn.addEventListener('click', () => fileInput.click());
+    uploadBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // 阻止事件冒泡，避免触发uploadArea的点击事件
+        fileInput.click();
+    });
     processBtn.addEventListener('click', processImage);
     cancelBtn.addEventListener('click', resetUpload);
     copyBtn.addEventListener('click', copyTextToClipboard);
