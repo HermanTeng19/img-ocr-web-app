@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片OCR识别 - Image OCR Recognition</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="title">
+                    <i class="fas fa-image"></i>
+                    图片OCR识别
+                </h1>
+                <p class="subtitle">上传图片，智能识别文字内容</p>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Upload Section -->
+            <section class="upload-section" id="uploadSection">
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-content">
+                        <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                        <h3>拖拽图片到此处</h3>
+                        <p>或者点击选择文件</p>
+                        <button type="button" class="upload-btn" id="uploadBtn">
+                            <i class="fas fa-folder-open"></i>
+                            选择图片
+                        </button>
+                        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                    </div>
+                </div>
+                
+                <div class="file-info" id="fileInfo" style="display: none;">
+                    <div class="file-preview">
+                        <img id="previewImage" alt="预览图片">
+                    </div>
+                    <div class="file-details">
+                        <p><strong>文件名：</strong><span id="fileName"></span></p>
+                        <p><strong>文件大小：</strong><span id="fileSize"></span></p>
+                        <button type="button" class="process-btn" id="processBtn">
+                            <i class="fas fa-magic"></i>
+                            开始识别
+                        </button>
+                        <button type="button" class="cancel-btn" id="cancelBtn">
+                            <i class="fas fa-times"></i>
+                            重新选择
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Processing Section -->
+            <section class="processing-section" id="processingSection" style="display: none;">
+                <div class="processing-content">
+                    <div class="loading-spinner">
+                        <div class="spinner"></div>
+                    </div>
+                    <h3>正在识别图片内容...</h3>
+                    <p>请稍候，这可能需要几秒钟时间</p>
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section class="results-section" id="resultsSection" style="display: none;">
+                <div class="results-header">
+                    <h3>
+                        <i class="fas fa-check-circle"></i>
+                        识别结果
+                    </h3>
+                    <div class="results-actions">
+                        <button type="button" class="copy-btn" id="copyBtn">
+                            <i class="fas fa-copy"></i>
+                            复制文本
+                        </button>
+                        <button type="button" class="new-btn" id="newBtn">
+                            <i class="fas fa-plus"></i>
+                            识别新图片
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="results-content">
+                    <div class="result-card">
+                        <div class="result-image">
+                            <img id="resultImage" alt="识别的图片">
+                        </div>
+                        <div class="result-text">
+                            <h4>识别到的文字：</h4>
+                            <div class="text-content" id="recognizedText">
+                                <!-- OCR结果将在这里显示 -->
+                            </div>
+                            <div class="result-meta">
+                                <p><strong>置信度：</strong><span id="confidence"></span></p>
+                                <p><strong>语言：</strong><span id="language"></span></p>
+                                <p><strong>处理时间：</strong><span id="processingTime"></span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Error Section -->
+            <section class="error-section" id="errorSection" style="display: none;">
+                <div class="error-content">
+                    <i class="fas fa-exclamation-triangle error-icon"></i>
+                    <h3>处理失败</h3>
+                    <p id="errorMessage">识别过程中出现错误，请重试</p>
+                    <button type="button" class="retry-btn" id="retryBtn">
+                        <i class="fas fa-redo"></i>
+                        重新尝试
+                    </button>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>&copy; 2024 图片OCR识别系统. 基于Web技术构建</p>
+        </footer>
+    </div>
+
+    <!-- Toast Messages -->
+    <div class="toast" id="toast">
+        <div class="toast-content">
+            <i class="toast-icon"></i>
+            <span class="toast-message"></span>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
