@@ -85,17 +85,12 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
             timestamp: new Date().toISOString()
         });
 
-        // Call webhook for OCR processing (placeholder for now)
+        // Call webhook for OCR processing
         try {
             await callOcrWebhook(processingId, imageInfo);
         } catch (webhookError) {
             console.error('Webhook call failed:', webhookError.message);
-            // Update result with error
-            processingResults.set(processingId, {
-                ...processingResults.get(processingId),
-                status: 'error',
-                error: 'OCR service temporarily unavailable. Webhook endpoint not configured.'
-            });
+            // Error is already handled in callOcrWebhook function
         }
 
         res.json({
@@ -141,16 +136,22 @@ app.get('/uploads/:filename', (req, res) => {
 // Webhook endpoint for receiving OCR results
 app.post('/api/webhook/ocr-result', (req, res) => {
     try {
+        console.log('Received webhook callback:', JSON.stringify(req.body, null, 2));
+        
         const { processingId, result, error } = req.body;
         
         if (!processingId) {
+            console.error('No processing ID provided in webhook callback');
             return res.status(400).json({ error: 'Processing ID is required' });
         }
         
         const existingResult = processingResults.get(processingId);
         if (!existingResult) {
+            console.error(`Processing ID not found: ${processingId}`);
             return res.status(404).json({ error: 'Processing ID not found' });
         }
+        
+        console.log(`Updating result for processing ID: ${processingId}`);
         
         // Update the processing result
         processingResults.set(processingId, {
@@ -161,63 +162,63 @@ app.post('/api/webhook/ocr-result', (req, res) => {
             completedAt: new Date().toISOString()
         });
         
+        console.log(`Processing ${processingId} ${error ? 'failed' : 'completed'}`);
+        
         res.json({ success: true, message: 'Result received successfully' });
         
     } catch (error) {
-        console.error('Webhook error:', error);
+        console.error('Webhook callback error:', error);
         res.status(500).json({ error: 'Failed to process webhook result' });
     }
 });
 
-// Function to call external OCR webhook (placeholder)
+// Function to call external OCR webhook
 async function callOcrWebhook(processingId, imageInfo) {
-    // TODO: Replace with actual webhook URL
-    const webhookUrl = process.env.OCR_WEBHOOK_URL || 'https://your-ocr-service.com/webhook';
+    const webhookUrl = 'http://localhost:5678/webhook/773ced4a-d812-4ecf-84e8-ee3bfefe277f';
     
-    // For now, simulate a processing delay and return mock data
-    setTimeout(() => {
-        // Simulate successful OCR result
-        const mockResult = {
-            text: 'This is a mock OCR result. The actual webhook is not configured yet.',
-            confidence: 0.95,
-            language: 'en',
-            boundingBoxes: [
-                { text: 'Sample', x: 10, y: 20, width: 100, height: 30 },
-                { text: 'Text', x: 120, y: 20, width: 80, height: 30 }
-            ]
-        };
-        
-        processingResults.set(processingId, {
-            ...processingResults.get(processingId),
-            status: 'completed',
-            result: mockResult,
-            completedAt: new Date().toISOString()
-        });
-    }, 2000); // 2 second delay to simulate processing
-    
-    // Uncomment and modify this section when you have a real webhook endpoint:
-    /*
     try {
-        const response = await axios.post(webhookUrl, {
+        console.log(`Calling OCR webhook for processing ID: ${processingId}`);
+        console.log(`Image file: ${imageInfo.filename}`);
+        
+        // Prepare the webhook payload
+        const payload = {
             processingId: processingId,
-            imageUrl: `${process.env.BASE_URL || 'http://localhost:3000'}/uploads/${imageInfo.filename}`,
-            callbackUrl: `${process.env.BASE_URL || 'http://localhost:3000'}/api/webhook/ocr-result`,
+            imageUrl: `http://localhost:3000/uploads/${imageInfo.filename}`,
+            callbackUrl: `http://localhost:3000/api/webhook/ocr-result`,
             metadata: {
                 originalName: imageInfo.originalName,
                 size: imageInfo.size,
                 uploadTime: imageInfo.uploadTime
             }
-        }, {
-            timeout: 30000 // 30 second timeout
+        };
+        
+        console.log('Webhook payload:', JSON.stringify(payload, null, 2));
+        
+        const response = await axios.post(webhookUrl, payload, {
+            timeout: 30000, // 30 second timeout
+            headers: {
+                'Content-Type': 'application/json'
+            }
         });
         
         console.log('Webhook called successfully:', response.status);
+        console.log('Webhook response:', response.data);
         return response.data;
+        
     } catch (error) {
         console.error('Webhook call failed:', error.message);
+        console.error('Error details:', error.response?.data);
+        
+        // Update processing result with error
+        processingResults.set(processingId, {
+            ...processingResults.get(processingId),
+            status: 'error',
+            error: `Webhook调用失败: ${error.message}`,
+            completedAt: new Date().toISOString()
+        });
+        
         throw error;
     }
-    */
 }
 
 // Error handling middleware

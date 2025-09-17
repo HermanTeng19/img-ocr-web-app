@@ -69,12 +69,12 @@ BASE_URL=http://localhost:3000
 
 ### Webhook集成
 
-目前webhook调用功能已经预留接口，但使用模拟数据。要集成真实的OCR服务：
+应用已集成真实的OCR webhook服务：
 
-1. 在 `server.js` 中找到 `callOcrWebhook` 函数
-2. 取消注释webhook调用代码
-3. 设置 `OCR_WEBHOOK_URL` 环境变量
-4. 根据你的OCR服务调整请求格式
+- **Webhook地址**: `http://localhost:5678/webhook/773ced4a-d812-4ecf-84e8-ee3bfefe277f`
+- **调用方式**: 当用户点击"开始识别"按钮时自动调用
+- **回调接口**: `http://localhost:3000/api/webhook/ocr-result`
+- **处理流程**: 异步调用 → 轮询状态 → 展示结果
 
 #### Webhook请求格式
 
