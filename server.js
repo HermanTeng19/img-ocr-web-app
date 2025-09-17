@@ -180,29 +180,99 @@ async function callOcrWebhook(processingId, imageInfo) {
         console.log(`Calling OCR webhook for processing ID: ${processingId}`);
         console.log(`Image file: ${imageInfo.filename}`);
         
-        // Prepare the webhook payload
-        const payload = {
-            processingId: processingId,
-            imageUrl: `http://localhost:3000/uploads/${imageInfo.filename}`,
-            callbackUrl: `http://localhost:3000/api/webhook/ocr-result`,
-            metadata: {
-                originalName: imageInfo.originalName,
-                size: imageInfo.size,
-                uploadTime: imageInfo.uploadTime
-            }
-        };
+        // Read the image file as binary data
+        const imagePath = path.join(__dirname, 'uploads', imageInfo.filename);
+        const imageBuffer = fs.readFileSync(imagePath);
         
-        console.log('Webhook payload:', JSON.stringify(payload, null, 2));
+        console.log(`Image size: ${imageBuffer.length} bytes`);
         
-        const response = await axios.post(webhookUrl, payload, {
+        // Create FormData to send binary file
+        const FormData = require('form-data');
+        const formData = new FormData();
+        
+        // Add the binary image file
+        formData.append('data', imageBuffer, {
+            filename: imageInfo.originalName,
+            contentType: 'image/' + path.extname(imageInfo.originalName).substring(1)
+        });
+        
+        // Add other parameters
+        formData.append('processingId', processingId);
+        formData.append('callbackUrl', 'http://localhost:3000/api/webhook/ocr-result');
+        formData.append('originalName', imageInfo.originalName);
+        formData.append('size', imageInfo.size.toString());
+        formData.append('uploadTime', imageInfo.uploadTime);
+        
+        console.log('Sending binary image data to webhook...');
+        
+        const response = await axios.post(webhookUrl, formData, {
             timeout: 30000, // 30 second timeout
             headers: {
-                'Content-Type': 'application/json'
-            }
+                ...formData.getHeaders()
+            },
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity
         });
         
         console.log('Webhook called successfully:', response.status);
         console.log('Webhook response:', response.data);
+        
+        // Process the response from n8n directly
+        if (response.data) {
+            console.log('Processing n8n response directly...');
+            console.log('Raw response data:', JSON.stringify(response.data, null, 2));
+            
+            // Extract text from Gemini API response format
+            let extractedText = '';
+            let confidence = 0.95;
+            let language = 'zh-CN';
+            
+            try {
+                // Handle Gemini API response format: candidates[0].content.parts[0].text
+                if (response.data.candidates && 
+                    response.data.candidates[0] && 
+                    response.data.candidates[0].content && 
+                    response.data.candidates[0].content.parts && 
+                    response.data.candidates[0].content.parts[0] && 
+                    response.data.candidates[0].content.parts[0].text) {
+                    
+                    extractedText = response.data.candidates[0].content.parts[0].text;
+                    console.log('Extracted text from Gemini response:', extractedText);
+                    
+                    // Calculate confidence from avgLogprobs if available
+                    if (response.data.candidates[0].avgLogprobs) {
+                        const avgLogprobs = response.data.candidates[0].avgLogprobs;
+                        // Convert log probability to confidence (rough estimation)
+                        confidence = Math.max(0.1, Math.min(1.0, Math.exp(avgLogprobs)));
+                    }
+                } else {
+                    // Fallback: try other possible text locations
+                    extractedText = response.data.text || 
+                                  response.data.result || 
+                                  (typeof response.data === 'string' ? response.data : JSON.stringify(response.data));
+                    console.log('Using fallback text extraction:', extractedText);
+                }
+            } catch (parseError) {
+                console.error('Error parsing response:', parseError);
+                extractedText = JSON.stringify(response.data);
+            }
+            
+            // Update the processing result with extracted text
+            processingResults.set(processingId, {
+                ...processingResults.get(processingId),
+                status: 'completed',
+                result: {
+                    text: extractedText,
+                    confidence: confidence,
+                    language: language
+                },
+                error: null,
+                completedAt: new Date().toISOString()
+            });
+            
+            console.log(`Processing ${processingId} completed with extracted text: "${extractedText.substring(0, 100)}..."`);
+        }
+        
         return response.data;
         
     } catch (error) {
