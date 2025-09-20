@@ -13,22 +13,25 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Create uploads directory if it doesn't exist
+// Create uploads directory if it doesn't exist (only for local development)
 const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
+if (process.env.NODE_ENV !== 'production' && !fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
 // Configure multer for file uploads
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/');
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'image-' + uniqueSuffix + path.extname(file.originalname));
-    }
-});
+// Use memory storage for Vercel deployment (ephemeral filesystem)
+const storage = process.env.NODE_ENV === 'production' 
+    ? multer.memoryStorage()
+    : multer.diskStorage({
+        destination: (req, file, cb) => {
+            cb(null, 'uploads/');
+        },
+        filename: (req, file, cb) => {
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            cb(null, 'image-' + uniqueSuffix + path.extname(file.originalname));
+        }
+    });
 
 const upload = multer({
     storage: storage,
@@ -66,10 +69,11 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
         }
 
         const imageInfo = {
-            filename: req.file.filename,
+            filename: req.file.filename || `image-${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(req.file.originalname)}`,
             originalName: req.file.originalname,
             size: req.file.size,
-            path: req.file.path,
+            path: req.file.path || null, // null for memory storage
+            buffer: req.file.buffer || null, // buffer for memory storage
             uploadTime: new Date().toISOString()
         };
 
@@ -124,6 +128,15 @@ app.get('/api/result/:processingId', (req, res) => {
 // Serve uploaded images
 app.get('/uploads/:filename', (req, res) => {
     const filename = req.params.filename;
+    
+    // In production (Vercel), files are not stored on disk
+    if (process.env.NODE_ENV === 'production') {
+        return res.status(404).json({ 
+            error: 'Image serving not available in production. Images are processed in memory only.' 
+        });
+    }
+    
+    // Local development: serve from disk
     const filePath = path.join(__dirname, 'uploads', filename);
     
     if (fs.existsSync(filePath)) {
@@ -174,15 +187,24 @@ app.post('/api/webhook/ocr-result', (req, res) => {
 
 // Function to call external OCR webhook
 async function callOcrWebhook(processingId, imageInfo) {
-    const webhookUrl = 'http://localhost:5678/webhook/773ced4a-d812-4ecf-84e8-ee3bfefe277f';
+    const webhookUrl = process.env.OCR_WEBHOOK_URL || 'http://localhost:5678/webhook/773ced4a-d812-4ecf-84e8-ee3bfefe277f';
     
     try {
         console.log(`Calling OCR webhook for processing ID: ${processingId}`);
         console.log(`Image file: ${imageInfo.filename}`);
         
         // Read the image file as binary data
-        const imagePath = path.join(__dirname, 'uploads', imageInfo.filename);
-        const imageBuffer = fs.readFileSync(imagePath);
+        let imageBuffer;
+        if (imageInfo.buffer) {
+            // Use buffer from memory storage (Vercel production)
+            imageBuffer = imageInfo.buffer;
+        } else if (imageInfo.path) {
+            // Read from disk storage (local development)
+            const imagePath = path.join(__dirname, 'uploads', imageInfo.filename);
+            imageBuffer = fs.readFileSync(imagePath);
+        } else {
+            throw new Error('No image data available');
+        }
         
         console.log(`Image size: ${imageBuffer.length} bytes`);
         
@@ -197,8 +219,9 @@ async function callOcrWebhook(processingId, imageInfo) {
         });
         
         // Add other parameters
+        const callbackBaseUrl = process.env.CALLBACK_BASE_URL || 'http://localhost:3000';
         formData.append('processingId', processingId);
-        formData.append('callbackUrl', 'http://localhost:3000/api/webhook/ocr-result');
+        formData.append('callbackUrl', `${callbackBaseUrl}/api/webhook/ocr-result`);
         formData.append('originalName', imageInfo.originalName);
         formData.append('size', imageInfo.size.toString());
         formData.append('uploadTime', imageInfo.uploadTime);
